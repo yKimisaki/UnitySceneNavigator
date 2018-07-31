@@ -34,10 +34,7 @@ namespace Tonari.Unity.NavigationSystemSample
                 var animation = new TransitionAnimator();
 
                 // Navigatorの作成
-                var navigator = new Navigator(null, canvasCustomizer, null);
-                navigator.OnNavigatedAsObservable()
-                    .Subscribe(x => animation.OnNavigatedAsync(x))
-                    .AddTo(navigator.Subscriptions);
+                var navigator = new Navigator(null, canvasCustomizer, null, animation);
 
                 // 全部終わったら最初のシーンに移動
                 await navigator.NavigateAsync(new UITestSceneArgs());

@@ -5,42 +5,42 @@ using UnityEngine;
 
 namespace Tonari.Unity.NavigationSystemSample
 {
-    public class TransitionAnimator
+    public class TransitionAnimator : IAfterTransition
     {
         private RuntimeAnimatorController _animator;
 
-        public UniTask OnNavigatedAsync(INavigationResult result)
+        public UniTask OnNavigatedAsync(INavigationContext context)
         {
             if (this._animator == null)
             {
                 this._animator = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
             }
 
-            var nextSceneAnimator = result.NextScene.RootObject.GetComponent<Animator>();
+            var nextSceneAnimator = context.NextScene.RootObject.GetComponent<Animator>();
             if (nextSceneAnimator == null)
             {
-                nextSceneAnimator = result.NextScene.RootObject.AddComponent<Animator>();
+                nextSceneAnimator = context.NextScene.RootObject.AddComponent<Animator>();
             }
             nextSceneAnimator.runtimeAnimatorController = this._animator;
 
             var prevSceneAnimator = default(Animator);
-            if (result.PreviousScene != null)
+            if (context.PreviousScene != null)
             {
-                prevSceneAnimator = result.PreviousScene.RootObject.GetComponent<Animator>();
+                prevSceneAnimator = context.PreviousScene.RootObject.GetComponent<Animator>();
                 if (prevSceneAnimator == null)
                 {
-                    prevSceneAnimator = result.PreviousScene.RootObject.AddComponent<Animator>();
+                    prevSceneAnimator = context.PreviousScene.RootObject.AddComponent<Animator>();
                 }
                 prevSceneAnimator.runtimeAnimatorController = this._animator;
             }
 
-            if (result.TransitionMode.HasFlag(TransitionMode.KeepCurrent))
+            if (context.TransitionMode.HasFlag(TransitionMode.KeepCurrent))
             {
-                if (result.TransitionMode.HasFlag(TransitionMode.New))
+                if (context.TransitionMode.HasFlag(TransitionMode.New))
                 {
                     nextSceneAnimator.Play("TransitionOpen");
                 }
-                else if (result.TransitionMode.HasFlag(TransitionMode.Back))
+                else if (context.TransitionMode.HasFlag(TransitionMode.Back))
                 {
                     if (prevSceneAnimator != null)
                     {

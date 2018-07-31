@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UniRx;
 using UniRx.Async;
 using UnityEngine;
@@ -22,14 +23,9 @@ namespace Tonari.Unity.SceneNavigator
 
         private ICanvasCustomizer _canvasCustomizer;
 
-        public CompositeDisposable Subscriptions { get; private set; }
-        private Subject<INavigationResult> _onNavigated;
-        public IObservable<INavigationResult> OnNavigatedAsObservable()
-        {
-            return this._onNavigated;
-        }
+        private IAfterTransition[] _afterTransitions;
 
-        public Navigator(ILoadingDisplaySelector loadingDisplaySelector, ICanvasCustomizer canvasCustomizer, ICanvasOrderArranger canvasOrderArranger)
+        public Navigator(ILoadingDisplaySelector loadingDisplaySelector, ICanvasCustomizer canvasCustomizer, ICanvasOrderArranger canvasOrderArranger, params IAfterTransition[] afterTransitions)
         {
             this._scenesByName = new Dictionary<string, INavigatableScene>();
 
@@ -43,9 +39,8 @@ namespace Tonari.Unity.SceneNavigator
             this._canvasOrderArranger = canvasOrderArranger ?? new DefaultCanvasOrderArranger();
 
             this._canvasCustomizer = canvasCustomizer;
-
-            this.Subscriptions = new CompositeDisposable();
-            this._onNavigated = new Subject<INavigationResult>();
+            
+            this._afterTransitions = afterTransitions;
         }
 
         public virtual UniTask NavigateAsync(SceneArgs args, IProgress<float> progress = null)
@@ -192,8 +187,8 @@ namespace Tonari.Unity.SceneNavigator
                 activationResult.NextScene.RootObject.SetActive(true);
                 await activationResult.NextScene.EnterAsync(activationResult.TransitionMode);
 
-                // 入ったらイベント発火
-                this._onNavigated.OnNext(activationResult);
+                // 新規シーンに入ったら外部の遷移処理を呼ぶ
+                await UniTask.WhenAll(this._afterTransitions.Select(x => x.OnNavigatedAsync(activationResult)));
 
                 // 古いシーンから出る
                 if (activationResult.PreviousScene != null)
@@ -372,7 +367,7 @@ namespace Tonari.Unity.SceneNavigator
             return result;
         }
 
-        private class NavigationResult : INavigationResult
+        private class NavigationResult : INavigationContext
         {
             public INavigatableScene NextScene { get; set; }
             public INavigatableScene PreviousScene { get; set; }

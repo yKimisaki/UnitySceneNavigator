@@ -1,7 +1,7 @@
 ﻿
 namespace Tonari.Unity.SceneNavigator
 {
-    public interface INavigationResult
+    public interface INavigationContext
     {
         INavigatableScene NextScene { get; }
         INavigatableScene PreviousScene { get; }
