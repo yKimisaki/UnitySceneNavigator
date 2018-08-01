@@ -11,11 +11,6 @@ namespace Tonari.Unity.NavigationSystemSample
 
         public async UniTask OnNavigatedAsync(INavigationContext context)
         {
-            if (context.TransitionMode.HasFlag(TransitionMode.New) && context.TransitionMode.HasFlag(TransitionMode.KeepCurrent))
-            {
-                context.NextScene.RootObject.SetActive(false);
-            }
-
             if (this._animatorController != null)
             {
                 this._animatorController = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
@@ -37,11 +32,6 @@ namespace Tonari.Unity.NavigationSystemSample
                     prevSceneAnimator = context.PreviousScene.RootObject.AddComponent<Animator>();
                 }
                 prevSceneAnimator.runtimeAnimatorController = this._animatorController;
-            }
-
-            if (!context.NextScene.RootObject.activeSelf)
-            {
-                context.NextScene.RootObject.SetActive(true);
             }
 
             if (context.TransitionMode.HasFlag(TransitionMode.KeepCurrent))
