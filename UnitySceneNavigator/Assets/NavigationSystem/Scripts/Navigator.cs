@@ -184,10 +184,10 @@ namespace Tonari.Unity.SceneNavigator
                 }
 
                 // 新規シーンに入る
-                activationResult.NextScene.RootObject.SetActive(true);
                 await activationResult.NextScene.EnterAsync(activationResult.TransitionMode);
 
                 // 新規シーンに入ったら外部の遷移処理を呼ぶ
+                activationResult.NextScene.RootObject.SetActive(true);
                 await UniTask.WhenAll(this._afterTransitions.Select(x => x.OnNavigatedAsync(activationResult)));
 
                 // 古いシーンから出る
