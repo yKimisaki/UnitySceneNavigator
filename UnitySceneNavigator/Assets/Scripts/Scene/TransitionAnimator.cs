@@ -7,21 +7,21 @@ namespace Tonari.Unity.NavigationSystemSample
 {
     public class TransitionAnimator : IAfterTransition
     {
-        private RuntimeAnimatorController _animator;
+        private RuntimeAnimatorController _animatorController;
+
+        public TransitionAnimator(RuntimeAnimatorController animatorController)
+        {
+            this._animatorController = animatorController;
+        }
 
         public UniTask OnNavigatedAsync(INavigationContext context)
         {
-            if (this._animator == null)
-            {
-                this._animator = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
-            }
-
             var nextSceneAnimator = context.NextScene.RootObject.GetComponent<Animator>();
             if (nextSceneAnimator == null)
             {
                 nextSceneAnimator = context.NextScene.RootObject.AddComponent<Animator>();
             }
-            nextSceneAnimator.runtimeAnimatorController = this._animator;
+            nextSceneAnimator.runtimeAnimatorController = this._animatorController;
 
             var prevSceneAnimator = default(Animator);
             if (context.PreviousScene != null)
@@ -31,7 +31,7 @@ namespace Tonari.Unity.NavigationSystemSample
                 {
                     prevSceneAnimator = context.PreviousScene.RootObject.AddComponent<Animator>();
                 }
-                prevSceneAnimator.runtimeAnimatorController = this._animator;
+                prevSceneAnimator.runtimeAnimatorController = this._animatorController;
             }
 
             if (context.TransitionMode.HasFlag(TransitionMode.KeepCurrent))

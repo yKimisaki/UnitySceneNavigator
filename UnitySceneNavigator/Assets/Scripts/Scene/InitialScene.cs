@@ -31,7 +31,8 @@ namespace Tonari.Unity.NavigationSystemSample
                 var canvasCustomizer = new CanvasCustomizer(camera);
 
                 // 遷移アニメーションの作成
-                var animation = new TransitionAnimator();
+                var animatorController = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
+                var animation = new TransitionAnimator(animatorController);
 
                 // Navigatorの作成
                 var navigator = new Navigator(null, canvasCustomizer, null, animation);
