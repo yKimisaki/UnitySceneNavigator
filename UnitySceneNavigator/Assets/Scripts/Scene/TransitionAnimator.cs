@@ -9,13 +9,18 @@ namespace Tonari.Unity.NavigationSystemSample
     {
         private RuntimeAnimatorController _animatorController;
 
-        public TransitionAnimator(RuntimeAnimatorController animatorController)
+        public async UniTask OnNavigatedAsync(INavigationContext context)
         {
-            this._animatorController = animatorController;
-        }
+            if (context.TransitionMode.HasFlag(TransitionMode.New) && context.TransitionMode.HasFlag(TransitionMode.KeepCurrent))
+            {
+                context.NextScene.RootObject.SetActive(false);
+            }
 
-        public UniTask OnNavigatedAsync(INavigationContext context)
-        {
+            if (this._animatorController != null)
+            {
+                this._animatorController = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
+            }
+
             var nextSceneAnimator = context.NextScene.RootObject.GetComponent<Animator>();
             if (nextSceneAnimator == null)
             {
@@ -34,6 +39,11 @@ namespace Tonari.Unity.NavigationSystemSample
                 prevSceneAnimator.runtimeAnimatorController = this._animatorController;
             }
 
+            if (!context.NextScene.RootObject.activeSelf)
+            {
+                context.NextScene.RootObject.SetActive(true);
+            }
+
             if (context.TransitionMode.HasFlag(TransitionMode.KeepCurrent))
             {
                 if (context.TransitionMode.HasFlag(TransitionMode.New))
@@ -49,7 +59,7 @@ namespace Tonari.Unity.NavigationSystemSample
                 }
             }
 
-            return UniTask.Delay(TimeSpan.FromSeconds(0.3));
+            await UniTask.Delay(TimeSpan.FromSeconds(0.3));
         }
     }
 }
