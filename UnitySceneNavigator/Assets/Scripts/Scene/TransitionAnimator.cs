@@ -11,7 +11,7 @@ namespace Tonari.Unity.NavigationSystemSample
 
         public async UniTask OnNavigatedAsync(INavigationContext context)
         {
-            if (this._animatorController != null)
+            if (this._animatorController == null)
             {
                 this._animatorController = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
             }
