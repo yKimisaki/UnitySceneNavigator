@@ -4,6 +4,7 @@ namespace Tonari.Unity.SceneNavigator
 {
     public interface IAfterTransition
     {
-        UniTask OnNavigatedAsync(INavigationContext context);
+        UniTask OnAfterEnterAsync(INavigationContext context);
+        UniTask OnAfterLeaveAsync(INavigationContext context);
     }
 }

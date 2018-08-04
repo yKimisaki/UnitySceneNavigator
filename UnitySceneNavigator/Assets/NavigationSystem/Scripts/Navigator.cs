@@ -23,9 +23,9 @@ namespace Tonari.Unity.SceneNavigator
 
         private ICanvasCustomizer _canvasCustomizer;
 
-        private IAfterTransition[] _afterTransitions;
+        private IAfterTransition _afterTransition;
 
-        public Navigator(ILoadingDisplaySelector loadingDisplaySelector, ICanvasCustomizer canvasCustomizer, ICanvasOrderArranger canvasOrderArranger, params IAfterTransition[] afterTransitions)
+        public Navigator(ILoadingDisplaySelector loadingDisplaySelector, ICanvasCustomizer canvasCustomizer, ICanvasOrderArranger canvasOrderArranger, IAfterTransition afterTransition)
         {
             this._scenesByName = new Dictionary<string, INavigatableScene>();
 
@@ -40,7 +40,7 @@ namespace Tonari.Unity.SceneNavigator
 
             this._canvasCustomizer = canvasCustomizer;
             
-            this._afterTransitions = afterTransitions;
+            this._afterTransition = afterTransition;
         }
 
         public virtual UniTask NavigateAsync(SceneArgs args, IProgress<float> progress = null)
@@ -100,7 +100,6 @@ namespace Tonari.Unity.SceneNavigator
 
         public virtual async UniTask<TResult> NavigateAsPopupAsync<TResult>(SceneArgs args, IProgress<float> progress = null)
         {
-
             var resultRequirementId = Guid.NewGuid();
             var taskCompletionSource = new UniTaskCompletionSource<object>();
 
@@ -187,13 +186,18 @@ namespace Tonari.Unity.SceneNavigator
                 await activationResult.NextScene.EnterAsync(activationResult.TransitionMode);
 
                 // 新規シーンに入ったら外部の遷移処理を呼ぶ
+                activationResult.NextScene.RootCanvas.enabled = false;
                 activationResult.NextScene.RootObject.SetActive(true);
-                await UniTask.WhenAll(this._afterTransitions.Select(x => x.OnNavigatedAsync(activationResult)));
+                await this._afterTransition.OnAfterEnterAsync(activationResult);
+                activationResult.NextScene.RootCanvas.enabled = true;
 
                 // 古いシーンから出る
                 if (activationResult.PreviousScene != null)
                 {
                     await activationResult.PreviousScene.LeaveAsync(activationResult.TransitionMode);
+
+                    // 古いシーンの遷移処理を呼ぶ
+                    await this._afterTransition.OnAfterLeaveAsync(activationResult);
 
                     // 上に乗せるフラグが無ければ非アクティブ化
                     if (!option.HasFlag(NavigationOption.Override))

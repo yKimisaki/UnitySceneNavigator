@@ -9,13 +9,13 @@ namespace Tonari.Unity.NavigationSystemSample
     {
         private RuntimeAnimatorController _animatorController;
 
-        public async UniTask OnNavigatedAsync(INavigationContext context)
+        public TransitionAnimator()
         {
-            if (this._animatorController == null)
-            {
-                this._animatorController = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
-            }
+            this._animatorController = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
+        }
 
+        public UniTask OnAfterEnterAsync(INavigationContext context)
+        {
             var nextSceneAnimator = context.NextScene.RootObject.GetComponent<Animator>();
             if (nextSceneAnimator == null)
             {
@@ -23,33 +23,30 @@ namespace Tonari.Unity.NavigationSystemSample
             }
             nextSceneAnimator.runtimeAnimatorController = this._animatorController;
 
-            var prevSceneAnimator = default(Animator);
-            if (context.PreviousScene != null)
+            if (context.TransitionMode.HasFlag(TransitionMode.KeepCurrent | TransitionMode.New))
             {
-                prevSceneAnimator = context.PreviousScene.RootObject.GetComponent<Animator>();
-                if (prevSceneAnimator == null)
-                {
-                    prevSceneAnimator = context.PreviousScene.RootObject.AddComponent<Animator>();
-                }
-                prevSceneAnimator.runtimeAnimatorController = this._animatorController;
+                nextSceneAnimator.Play("TransitionOpen");
             }
 
-            if (context.TransitionMode.HasFlag(TransitionMode.KeepCurrent))
+            return UniTask.CompletedTask;
+        }
+
+        public UniTask OnAfterLeaveAsync(INavigationContext context)
+        {
+            var prevSceneAnimator = context.PreviousScene.RootObject.GetComponent<Animator>();
+            if (prevSceneAnimator == null)
             {
-                if (context.TransitionMode.HasFlag(TransitionMode.New))
-                {
-                    nextSceneAnimator.Play("TransitionOpen");
-                }
-                else if (context.TransitionMode.HasFlag(TransitionMode.Back))
-                {
-                    if (prevSceneAnimator != null)
-                    {
-                        prevSceneAnimator.Play("TransitionClose");
-                    }
-                }
+                prevSceneAnimator = context.PreviousScene.RootObject.AddComponent<Animator>();
+            }
+            prevSceneAnimator.runtimeAnimatorController = this._animatorController;
+
+            if (context.TransitionMode.HasFlag(TransitionMode.KeepCurrent) && context.TransitionMode.HasFlag(TransitionMode.Back))
+            {
+                prevSceneAnimator.Play("TransitionClose");
+                return UniTask.Delay(TimeSpan.FromSeconds(0.25));
             }
 
-            await UniTask.Delay(TimeSpan.FromSeconds(0.3));
+            return UniTask.CompletedTask;
         }
     }
 }
