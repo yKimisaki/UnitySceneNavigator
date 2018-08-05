@@ -25,5 +25,7 @@ namespace Tonari.Unity.SceneNavigator
 
         UniTask EnterAsync(TransitionMode mode);
         UniTask LeaveAsync(TransitionMode mode);
+
+        void OnCollapse();
     }
 }

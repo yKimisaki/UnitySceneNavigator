@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Threading;
+using UniRx;
 using UniRx.Async;
 using UnityEngine;
 
@@ -39,9 +41,21 @@ namespace Tonari.Unity.SceneNavigator
 
         protected SceneSharedParameter SceneShared { get; }
 
+        private CompositeDisposable _subscriptions;
+        private CancellationTokenSource _cancellationTokenSource;
+
         public SceneBase()
         {
-            this.SceneShared = new SceneSharedParameter();
+            this._subscriptions = new CompositeDisposable();
+            this._cancellationTokenSource = new CancellationTokenSource();
+
+            this.SceneShared = new SceneSharedParameter(this._subscriptions, this._cancellationTokenSource);
+        }
+
+        void INavigatableScene.OnCollapse()
+        {
+            this._subscriptions.Dispose();
+            this._cancellationTokenSource.Cancel();
         }
     }
 #pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously

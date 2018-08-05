@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using UniRx;
 using UniRx.Async;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -208,6 +206,9 @@ namespace Tonari.Unity.SceneNavigator
                     // Popするならアンロードも行う
                     if (option.HasFlag(NavigationOption.Pop))
                     {
+                        // シーンのファイナライズ処理
+                        activationResult.PreviousScene.OnCollapse();
+
                         // 古いシーンをスタックから抜いてアンロード
                         var popObject = this._navigateHistoryStack.Pop();
                         await UnloadAsync(activationResult.PreviousScene.SceneArgs, progress);

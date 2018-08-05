@@ -14,7 +14,7 @@ namespace Tonari.Unity.NavigationSystemSample
 
         public override void Initialize()
         {
-            this.Button.OnClick(this.SceneShared, async () => await Navigator.NavigateBackAsync(50));
+            this.Button.OnClick(this.SceneShared, () => this.Navigator.NavigateBackAsync(50));
         }
     }
 }

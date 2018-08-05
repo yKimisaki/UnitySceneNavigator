@@ -1,5 +1,4 @@
-﻿using System;
-
+﻿
 namespace Tonari.Unity.SceneNavigator
 {
     public abstract class SceneArgs
