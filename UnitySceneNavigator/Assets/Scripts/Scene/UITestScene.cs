@@ -14,10 +14,7 @@ namespace Tonari.Unity.NavigationSystemSample
 
         public override void Initialize()
         {
-            this.PopupButton.OnClick(this.SceneShared, async () =>
-            {
-                await Navigator.NavigateAsPopupAsync<int>(new UIPopupTestSceneArgs());
-            });
+            this.PopupButton.OnClick(this.SceneShared, () => Navigator.NavigateAsPopupAsync<int>(new UIPopupTestSceneArgs()));
         }
     }
 }

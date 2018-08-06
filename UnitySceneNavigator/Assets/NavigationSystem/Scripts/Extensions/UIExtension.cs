@@ -22,7 +22,7 @@ namespace Tonari.Unity.SceneNavigator
 
                     sharedParameter.CanInput = true;
 
-                    await call().WithCancellation(sharedParameter.CancellationTokenSource.Token, sharedParameter.CancellationTokenSource);
+                    await call();
                 }
                 catch
                 {
