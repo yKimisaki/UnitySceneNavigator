@@ -14,7 +14,7 @@ namespace Tonari.Unity.NavigationSystemSample
             this._animatorController = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
         }
 
-        public UniTask OnAfterEnterAsync(INavigationContext context)
+        public UniTask OnEnteredAsync(INavigationContext context)
         {
             var nextSceneAnimator = context.NextScene.RootObject.GetComponent<Animator>();
             if (nextSceneAnimator == null)
@@ -31,7 +31,7 @@ namespace Tonari.Unity.NavigationSystemSample
             return UniTask.CompletedTask;
         }
 
-        public UniTask OnAfterLeaveAsync(INavigationContext context)
+        public UniTask OnLeftAsync(INavigationContext context)
         {
             var prevSceneAnimator = context.PreviousScene.RootObject.GetComponent<Animator>();
             if (prevSceneAnimator == null)

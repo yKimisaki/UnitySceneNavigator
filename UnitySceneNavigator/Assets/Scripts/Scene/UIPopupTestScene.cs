@@ -10,11 +10,13 @@ namespace Tonari.Unity.NavigationSystemSample
 
     public class UIPopupTestScene : SceneBase
     {
-        public Button Button;
+        public Button PopupButton;
+        public Button CloseButton;
 
         public override void Initialize()
         {
-            this.Button.OnClick(this.SceneShared, () => this.Navigator.NavigateBackAsync(50));
+            this.PopupButton.OnClick(this.SceneShared, () => this.Navigator.NavigateAsPopupAsync<int>(new UIPopupTestSceneArgs()));
+            this.CloseButton.OnClick(this.SceneShared, () => this.Navigator.NavigateBackAsync(50));
         }
     }
 }

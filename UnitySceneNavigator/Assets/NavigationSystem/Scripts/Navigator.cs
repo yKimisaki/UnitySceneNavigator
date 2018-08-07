@@ -186,7 +186,7 @@ namespace Tonari.Unity.SceneNavigator
                 // 新規シーンに入ったら外部の遷移処理を呼ぶ
                 activationResult.NextScene.RootCanvas.enabled = false;
                 activationResult.NextScene.RootObject.SetActive(true);
-                await this._afterTransition.OnAfterEnterAsync(activationResult);
+                await this._afterTransition.OnEnteredAsync(activationResult);
                 activationResult.NextScene.RootCanvas.enabled = true;
 
                 // 古いシーンから出る
@@ -195,7 +195,7 @@ namespace Tonari.Unity.SceneNavigator
                     await activationResult.PreviousScene.LeaveAsync(activationResult.TransitionMode);
 
                     // 古いシーンの遷移処理を呼ぶ
-                    await this._afterTransition.OnAfterLeaveAsync(activationResult);
+                    await this._afterTransition.OnLeftAsync(activationResult);
 
                     // 上に乗せるフラグが無ければ非アクティブ化
                     if (!option.HasFlag(NavigationOption.Override))
@@ -372,6 +372,60 @@ namespace Tonari.Unity.SceneNavigator
             return result;
         }
 
+        private static bool _isLaunched;
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void OnLaunch()
+        {
+            EntryPoint.MainAsync().GetResult();
+
+            _isLaunched = true;
+        }
+
+        public async UniTask ActivateInitialSceneOnLaunchAsync()
+        {
+            if (_isLaunched)
+            {
+                return;
+            }
+
+            var currentScene = SceneManager.GetActiveScene();
+            var args = new DefaultSceneArgs(currentScene.name);
+
+            var activationResult = this.Activate(args, NavigationOption.Push);
+            // ここでダメな場合は既にActivateAsyncでエラーを吐いてるハズ
+            if (activationResult == null || activationResult.NextScene == null)
+            {
+                return;
+            }
+
+            this._scenesByName[args.SceneName] = activationResult.NextScene;
+
+            // ロード時にCanvasの調整をする
+            if (this._canvasCustomizer != null)
+            {
+                this._canvasCustomizer.Customize(activationResult.NextScene.RootCanvas);
+            }
+
+            // シーンをスタックに積む
+            this._navigateHistoryStack.Push(new NavigationStackElement() { SceneName = args.SceneName, TransitionMode = activationResult.TransitionMode });
+
+            // シーンをリセットする
+            await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode);
+
+            // シーンを初期化する
+            activationResult.NextScene.Initialize();
+
+            // シーンに入る
+            await activationResult.NextScene.EnterAsync(activationResult.TransitionMode);
+
+            // 新規シーンに入ったら外部の遷移処理を呼ぶ
+            activationResult.NextScene.RootCanvas.enabled = false;
+            activationResult.NextScene.RootObject.SetActive(true);
+            await this._afterTransition.OnEnteredAsync(activationResult);
+            activationResult.NextScene.RootCanvas.enabled = true;
+        }
+
         private class NavigationResult : INavigationContext
         {
             public INavigatableScene NextScene { get; set; }
@@ -404,6 +458,13 @@ namespace Tonari.Unity.SceneNavigator
             public void Dispose()
             {
                 _lock = null;
+            }
+        }
+
+        private sealed class DefaultSceneArgs : SceneArgs
+        {
+            public DefaultSceneArgs(string sceneName) : base(sceneName)
+            {
             }
         }
     }

@@ -6,7 +6,6 @@ using UnityEngine;
 
 namespace Tonari.Unity.SceneNavigator
 {
-#pragma warning disable CS1998 // Async method lacks 'await' operators and will run synchronously
     public abstract class SceneBase : MonoBehaviour, INavigatableScene
     {
         SceneArgs INavigatableScene.SceneArgs { get; set; }
@@ -31,13 +30,13 @@ namespace Tonari.Unity.SceneNavigator
         {
             this.Navigator = navigator;
         }
-
-        public virtual async UniTask ResetAsync(SceneArgs args, TransitionMode mode) { }
+        
+        public virtual UniTask ResetAsync(SceneArgs args, TransitionMode mode) => UniTask.CompletedTask;
 
         public abstract void Initialize();
 
-        public virtual async UniTask EnterAsync(TransitionMode mode) { }
-        public virtual async UniTask LeaveAsync(TransitionMode mode) { }
+        public virtual UniTask EnterAsync(TransitionMode mode) => UniTask.CompletedTask;
+        public virtual UniTask LeaveAsync(TransitionMode mode) => UniTask.CompletedTask;
 
         protected SceneSharedParameter SceneShared { get; }
 
@@ -58,5 +57,4 @@ namespace Tonari.Unity.SceneNavigator
             this._cancellationTokenSource.Cancel();
         }
     }
-#pragma warning restore CS1998 // Async method lacks 'await' operators and will run synchronously
 }
