@@ -1,4 +1,6 @@
-﻿
+﻿using System.Collections.Generic;
+using UnityEngine;
+
 namespace Tonari.Unity.SceneNavigator
 {
     public class DefaultCanvasOrderArranger : ICanvasOrderArranger
@@ -11,14 +13,8 @@ namespace Tonari.Unity.SceneNavigator
             }
         }
 
-        public int GetOrder(int parentOrder, NavigationOption option)
+        public void ArrangeOrder(IReadOnlyList<Canvas> canvas, NavigationOption option)
         {
-            if (option.HasFlag(NavigationOption.Override))
-            {
-                return parentOrder + 1;
-            }
-
-            return parentOrder;
         }
     }
 }

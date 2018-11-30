@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Threading;
 using UniRx.Async;
 using UnityEngine;
 
@@ -14,8 +16,10 @@ namespace Tonari.Unity.SceneNavigator
         Guid? ResultRequirementId { get; set; }
 
         GameObject RootObject { get; }
-        Canvas RootCanvas { get; }
-        void SetRootCanvas(Canvas canvas);
+
+        IReadOnlyList<Canvas> RootCanvases { get; }
+
+        CancellationToken SceneLifeCancellationToken { get; }
 
         void SetNavigator(Navigator navigator);
 
@@ -26,6 +30,6 @@ namespace Tonari.Unity.SceneNavigator
         UniTask EnterAsync(TransitionMode mode);
         UniTask LeaveAsync(TransitionMode mode);
 
-        void OnCollapse();
+        void Collapse();
     }
 }

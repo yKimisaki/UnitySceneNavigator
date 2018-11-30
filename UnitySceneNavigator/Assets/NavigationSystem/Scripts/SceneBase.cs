@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Threading;
 using UniRx;
 using UniRx.Async;
@@ -19,11 +20,10 @@ namespace Tonari.Unity.SceneNavigator
         Guid? INavigatableScene.ResultRequirementId { get; set; }
 
         GameObject INavigatableScene.RootObject => this.gameObject;
-        public virtual Canvas RootCanvas { get; private set; }
-        void INavigatableScene.SetRootCanvas(Canvas canvas)
-        {
-            this.RootCanvas = canvas;
-        }
+
+        [SerializeField]
+        private Canvas[] rootCanvases;
+        IReadOnlyList<Canvas> INavigatableScene.RootCanvases { get { return this.rootCanvases; } }
 
         protected Navigator Navigator { get; private set; }
         void INavigatableScene.SetNavigator(Navigator navigator)
@@ -39,11 +39,12 @@ namespace Tonari.Unity.SceneNavigator
         public virtual UniTask LeaveAsync(TransitionMode mode) => UniTask.CompletedTask;
 
         protected SceneSharedParameter SceneShared { get; }
+        CancellationToken INavigatableScene.SceneLifeCancellationToken { get { return this.SceneShared.CancellationTokenSource.Token; } }
 
         private CompositeDisposable _subscriptions;
         private CancellationTokenSource _cancellationTokenSource;
 
-        public SceneBase()
+        protected SceneBase()
         {
             this._subscriptions = new CompositeDisposable();
             this._cancellationTokenSource = new CancellationTokenSource();
@@ -51,7 +52,7 @@ namespace Tonari.Unity.SceneNavigator
             this.SceneShared = new SceneSharedParameter(this._subscriptions, this._cancellationTokenSource);
         }
 
-        void INavigatableScene.OnCollapse()
+        void INavigatableScene.Collapse()
         {
             this._subscriptions.Dispose();
             this._cancellationTokenSource.Cancel();
