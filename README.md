@@ -1,6 +1,7 @@
 # UnitySceneNavigator
 
 UniRxを統合してUniTask機能で作った、コードベースでシンプルなシーン遷移の管理システム。
+まだ作業途中なので破壊的変更を入れまくります。
 
 ## 使い方
 
@@ -34,11 +35,5 @@ this.Button.OnClick(this.SceneShared, async () =>
 this.Button.OnClick(this.SceneShared, () => Navigator.NavigateBackAsync(100));
 ```
 
-## サンプル
-
-クローンしたものをUnityで開き、InitialSceneから再生。
-
-![result](https://github.com/yKimisaki/SceneNavigator/blob/media/SamleMovie.gif)
-
 ### 動作確認
-Unity 2018.2.1f1
+Unity 2018.3.0b12
