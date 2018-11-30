@@ -2,6 +2,14 @@
 
 namespace Tonari.Unity.SceneNavigator
 {
+    public enum SceneStyle
+    {
+        None = 0,
+
+        Sub = 1,
+        Popup = 2,
+    }
+
     [Flags]
     public enum NavigationOption
     {
@@ -11,7 +19,7 @@ namespace Tonari.Unity.SceneNavigator
         Pop = 1 << 2,
 
         Override = 1 << 31,
-        
+
         Popup = Push | Override,
     }
 

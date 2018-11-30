@@ -10,14 +10,13 @@ namespace Tonari.Unity.SceneNavigator
     public abstract class SceneBase : MonoBehaviour, INavigatableScene
     {
         ISceneArgs INavigatableScene.SceneArgs { get; set; }
+        SceneStyle INavigatableScene.SceneStyle => SceneStyle.None;
 
         public ISceneArgs ParentSceneArgs { get; private set; }
         void INavigatableScene.SetParentSceneArgs(ISceneArgs args)
         {
             this.ParentSceneArgs = args;
         }
-        
-        public virtual IReadOnlyList<ISceneArgs> SubScenes { get { return Array.Empty<ISceneArgs>(); } }
 
         Guid? INavigatableScene.ResultRequirementId { get; set; }
 
@@ -61,5 +60,13 @@ namespace Tonari.Unity.SceneNavigator
         }
     }
 
-    public abstract class SubSceneBase : SceneBase { }
+    public abstract class SubSceneBase : SceneBase, INavigatableScene
+    {
+        SceneStyle INavigatableScene.SceneStyle => SceneStyle.Sub;
+    }
+
+    public abstract class PopupSceneBase : SceneBase, INavigatableScene
+    {
+        SceneStyle INavigatableScene.SceneStyle => SceneStyle.Popup;
+    }
 }

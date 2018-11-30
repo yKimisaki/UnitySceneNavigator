@@ -9,11 +9,10 @@ namespace Tonari.Unity.SceneNavigator
     public interface INavigatableScene
     {
         ISceneArgs SceneArgs { get; set; }
+        SceneStyle SceneStyle { get; }
 
         ISceneArgs ParentSceneArgs { get; }
         void SetParentSceneArgs(ISceneArgs args);
-
-        IReadOnlyList<ISceneArgs> SubScenes { get; }
 
         Guid? ResultRequirementId { get; set; }
 
