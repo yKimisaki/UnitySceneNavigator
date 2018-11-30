@@ -1,13 +1,23 @@
 ﻿
 namespace Tonari.Unity.SceneNavigator
 {
-    public abstract class SceneArgs
+    public interface ISceneArgs
     {
-        public string SceneName { get; }
+        string SceneName { get; }
+    }
 
-        protected SceneArgs(string sceneName)
-        {
-            this.SceneName = sceneName;
-        }
+    public abstract class SceneArgs<T> : ISceneArgs where T : SceneBase
+    {
+        string ISceneArgs.SceneName => nameof(T);
+    }
+
+    public interface ISubSceneArgs
+    {
+        string SceneName { get; }
+    }
+
+    public abstract class SubSceneArgs<T> : ISubSceneArgs where T : SceneBase
+    {
+        string ISubSceneArgs.SceneName => nameof(T);
     }
 }

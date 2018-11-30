@@ -9,21 +9,23 @@ namespace Tonari.Unity.SceneNavigator
 {
     public abstract class SceneBase : MonoBehaviour, INavigatableScene
     {
-        SceneArgs INavigatableScene.SceneArgs { get; set; }
+        ISceneArgs INavigatableScene.SceneArgs { get; set; }
 
-        public SceneArgs ParentSceneArgs { get; private set; }
-        void INavigatableScene.SetParentSceneArgs(SceneArgs args)
+        public ISceneArgs ParentSceneArgs { get; private set; }
+        void INavigatableScene.SetParentSceneArgs(ISceneArgs args)
         {
             this.ParentSceneArgs = args;
         }
+        
+        public virtual IReadOnlyList<ISubSceneArgs> SubScenes { get { return Array.Empty<ISubSceneArgs>(); } }
 
         Guid? INavigatableScene.ResultRequirementId { get; set; }
 
         GameObject INavigatableScene.RootObject => this.gameObject;
 
         [SerializeField]
-        private Canvas[] rootCanvases;
-        IReadOnlyList<Canvas> INavigatableScene.RootCanvases { get { return this.rootCanvases; } }
+        public Canvas[] RootCanvases;
+        IReadOnlyList<Canvas> INavigatableScene.RootCanvases { get { return this.RootCanvases; } }
 
         protected Navigator Navigator { get; private set; }
         void INavigatableScene.SetNavigator(Navigator navigator)
@@ -31,7 +33,7 @@ namespace Tonari.Unity.SceneNavigator
             this.Navigator = navigator;
         }
         
-        public virtual UniTask ResetAsync(SceneArgs args, TransitionMode mode) => UniTask.CompletedTask;
+        public virtual UniTask ResetAsync(ISceneArgs args, TransitionMode mode) => UniTask.CompletedTask;
 
         public abstract void Initialize();
 

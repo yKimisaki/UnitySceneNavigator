@@ -8,10 +8,12 @@ namespace Tonari.Unity.SceneNavigator
 {
     public interface INavigatableScene
     {
-        SceneArgs SceneArgs { get; set; }
+        ISceneArgs SceneArgs { get; set; }
 
-        SceneArgs ParentSceneArgs { get; }
-        void SetParentSceneArgs(SceneArgs args);
+        ISceneArgs ParentSceneArgs { get; }
+        void SetParentSceneArgs(ISceneArgs args);
+
+        IReadOnlyList<ISubSceneArgs> SubScenes { get; }
 
         Guid? ResultRequirementId { get; set; }
 
@@ -23,7 +25,7 @@ namespace Tonari.Unity.SceneNavigator
 
         void SetNavigator(Navigator navigator);
 
-        UniTask ResetAsync(SceneArgs args, TransitionMode mode);
+        UniTask ResetAsync(ISceneArgs args, TransitionMode mode);
 
         void Initialize();
 

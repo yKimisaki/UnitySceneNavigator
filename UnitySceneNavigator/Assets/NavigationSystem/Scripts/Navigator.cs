@@ -41,7 +41,7 @@ namespace Tonari.Unity.SceneNavigator
             this._afterTransition = afterTransition;
         }
 
-        public virtual async UniTask NavigateAsync(SceneArgs args, IProgress<float> progress = null)
+        public virtual async UniTask NavigateAsync(ISceneArgs args, IProgress<float> progress = null)
         {
             // 結果を待ってるシーンがあるならダメ
             if (this._taskCompletionSourcesByResultRequirementId.Count > 0)
@@ -97,7 +97,7 @@ namespace Tonari.Unity.SceneNavigator
             }
         }
 
-        public virtual async UniTask<TResult> NavigateAsPopupAsync<TResult>(SceneArgs args, IProgress<float> progress = null)
+        public virtual async UniTask<TResult> NavigateAsPopupAsync<TResult>(ISceneArgs args, IProgress<float> progress = null)
         {
             var resultRequirementId = Guid.NewGuid();
             var taskCompletionSource = new UniTaskCompletionSource<object>();
@@ -130,7 +130,7 @@ namespace Tonari.Unity.SceneNavigator
             return (TResult)result;
         }
 
-        private async UniTask<NavigationResult> NavigateCoreAsync(SceneArgs args, NavigationOption option = NavigationOption.None, IProgress<float> progress = null)
+        private async UniTask<NavigationResult> NavigateCoreAsync(ISceneArgs args, NavigationOption option = NavigationOption.None, IProgress<float> progress = null)
         {
             using (NavigationLock.Acquire(args))
             {
@@ -252,7 +252,7 @@ namespace Tonari.Unity.SceneNavigator
             }
         }
 
-        private async UniTask<NavigationResult> LoadAsync(SceneArgs args, NavigationOption option = NavigationOption.None, IProgress<float> progress = null)
+        private async UniTask<NavigationResult> LoadAsync(ISceneArgs args, NavigationOption option = NavigationOption.None, IProgress<float> progress = null)
         {
             var asyncOperation = SceneManager.LoadSceneAsync(args.SceneName, LoadSceneMode.Additive);
 
@@ -284,7 +284,7 @@ namespace Tonari.Unity.SceneNavigator
             return result;
         }
 
-        private async UniTask UnloadAsync(SceneArgs args, IProgress<float> progress = null)
+        private async UniTask UnloadAsync(ISceneArgs args, IProgress<float> progress = null)
         {
             var asyncOperation = SceneManager.UnloadSceneAsync(args.SceneName);
 
@@ -302,7 +302,7 @@ namespace Tonari.Unity.SceneNavigator
             }
         }
 
-        private NavigationResult Activate(SceneArgs args, NavigationOption option = NavigationOption.None)
+        private NavigationResult Activate(ISceneArgs args, NavigationOption option = NavigationOption.None)
         {
             var result = new NavigationResult();
 
@@ -493,7 +493,7 @@ namespace Tonari.Unity.SceneNavigator
         {
             private static NavigationLock _lock;
 
-            public static NavigationLock Acquire(SceneArgs args)
+            public static NavigationLock Acquire(ISceneArgs args)
             {
                 if (_lock != null)
                 {
@@ -511,10 +511,13 @@ namespace Tonari.Unity.SceneNavigator
             }
         }
 
-        private sealed class DefaultSceneArgs : SceneArgs
+        private sealed class DefaultSceneArgs : ISceneArgs
         {
-            public DefaultSceneArgs(string sceneName) : base(sceneName)
+            public string SceneName { get; }
+
+            public DefaultSceneArgs(string sceneName)
             {
+                this.SceneName = sceneName;
             }
         }
     }
