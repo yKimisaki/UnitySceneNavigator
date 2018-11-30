@@ -17,7 +17,7 @@ namespace Tonari.Unity.SceneNavigator
             this.ParentSceneArgs = args;
         }
         
-        public virtual IReadOnlyList<ISubSceneArgs> SubScenes { get { return Array.Empty<ISubSceneArgs>(); } }
+        public virtual IReadOnlyList<ISceneArgs> SubScenes { get { return Array.Empty<ISceneArgs>(); } }
 
         Guid? INavigatableScene.ResultRequirementId { get; set; }
 
@@ -60,4 +60,6 @@ namespace Tonari.Unity.SceneNavigator
             this._cancellationTokenSource.Cancel();
         }
     }
+
+    public abstract class SubSceneBase : SceneBase { }
 }

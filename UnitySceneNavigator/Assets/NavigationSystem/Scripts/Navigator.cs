@@ -97,7 +97,7 @@ namespace Tonari.Unity.SceneNavigator
             }
         }
 
-        public virtual async UniTask<TResult> NavigateAsPopupAsync<TResult>(ISceneArgs args, IProgress<float> progress = null)
+        public virtual async UniTask<TResult> NavigatePopupAsync<TResult>(ISceneArgs args, IProgress<float> progress = null)
         {
             var resultRequirementId = Guid.NewGuid();
             var taskCompletionSource = new UniTaskCompletionSource<object>();

@@ -11,18 +11,8 @@ namespace Tonari.Unity.SceneNavigator
         string ISceneArgs.SceneName => nameof(T);
     }
 
-    public abstract class PopupSceneArgs<T> : ISceneArgs where T : SceneBase
+    public abstract class SubSceneArgs<T> : ISceneArgs where T : SubSceneBase
     {
         string ISceneArgs.SceneName => nameof(T);
-    }
-
-    public interface ISubSceneArgs
-    {
-        string SceneName { get; }
-    }
-
-    public abstract class SubSceneArgs<T> : ISubSceneArgs where T : SceneBase
-    {
-        string ISubSceneArgs.SceneName => nameof(T);
     }
 }

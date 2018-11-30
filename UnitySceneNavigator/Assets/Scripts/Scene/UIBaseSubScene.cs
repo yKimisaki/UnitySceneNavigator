@@ -5,7 +5,7 @@ namespace Tonari.Unity.NavigationSystemSample
 {
     public class UIBaseSubSceneArgs : SubSceneArgs<UIBaseSubScene> { }
 
-    public class UIBaseSubScene : SceneBase
+    public class UIBaseSubScene : SubSceneBase
     {
         public override void Initialize()
         {

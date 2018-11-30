@@ -13,7 +13,7 @@ namespace Tonari.Unity.SceneNavigator
         ISceneArgs ParentSceneArgs { get; }
         void SetParentSceneArgs(ISceneArgs args);
 
-        IReadOnlyList<ISubSceneArgs> SubScenes { get; }
+        IReadOnlyList<ISceneArgs> SubScenes { get; }
 
         Guid? ResultRequirementId { get; set; }
 
