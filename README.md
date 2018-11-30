@@ -35,11 +35,5 @@ this.Button.OnClick(this.SceneShared, async () =>
 this.Button.OnClick(this.SceneShared, () => Navigator.NavigateBackAsync(100));
 ```
 
-## サンプル
-
-クローンしたものをUnityで開き、InitialSceneから再生。
-
-![result](https://github.com/yKimisaki/SceneNavigator/blob/media/SamleMovie.gif)
-
 ### 動作確認
 Unity 2018.3.0b12
