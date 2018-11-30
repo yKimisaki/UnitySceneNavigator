@@ -42,4 +42,4 @@ this.Button.OnClick(this.SceneShared, () => Navigator.NavigateBackAsync(100));
 ![result](https://github.com/yKimisaki/SceneNavigator/blob/media/SamleMovie.gif)
 
 ### 動作確認
-Unity 2018.2.1f1
+Unity 2018.3.0b12
