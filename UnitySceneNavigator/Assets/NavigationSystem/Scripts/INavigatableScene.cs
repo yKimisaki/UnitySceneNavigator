@@ -9,7 +9,6 @@ namespace Tonari.Unity.SceneNavigator
     public interface INavigatableScene
     {
         ISceneArgs SceneArgs { get; set; }
-        SceneStyle SceneStyle { get; }
 
         ISceneArgs ParentSceneArgs { get; }
         void SetParentSceneArgs(ISceneArgs args);
@@ -24,12 +23,12 @@ namespace Tonari.Unity.SceneNavigator
 
         void SetNavigator(Navigator navigator);
 
-        UniTask ResetAsync(ISceneArgs args, TransitionMode mode);
+        UniTask ResetAsync(ISceneArgs args, TransitionMode mode, IProgress<float> progress);
 
         void Initialize();
 
-        UniTask EnterAsync(TransitionMode mode);
-        UniTask LeaveAsync(TransitionMode mode);
+        UniTask EnterAsync(TransitionMode mode, IProgress<float> progress);
+        UniTask LeaveAsync(TransitionMode mode, IProgress<float> progress);
 
         void Collapse();
     }

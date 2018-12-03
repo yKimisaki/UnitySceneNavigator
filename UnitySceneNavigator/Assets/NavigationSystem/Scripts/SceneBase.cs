@@ -10,7 +10,6 @@ namespace Tonari.Unity.SceneNavigator
     public abstract class SceneBase : MonoBehaviour, INavigatableScene
     {
         ISceneArgs INavigatableScene.SceneArgs { get; set; }
-        SceneStyle INavigatableScene.SceneStyle => SceneStyle.None;
 
         public ISceneArgs ParentSceneArgs { get; private set; }
         void INavigatableScene.SetParentSceneArgs(ISceneArgs args)
@@ -32,12 +31,12 @@ namespace Tonari.Unity.SceneNavigator
             this.Navigator = navigator;
         }
         
-        public virtual UniTask ResetAsync(ISceneArgs args, TransitionMode mode) => UniTask.CompletedTask;
+        public virtual UniTask ResetAsync(ISceneArgs args, TransitionMode mode, IProgress<float> progress) => UniTask.CompletedTask;
 
         public abstract void Initialize();
 
-        public virtual UniTask EnterAsync(TransitionMode mode) => UniTask.CompletedTask;
-        public virtual UniTask LeaveAsync(TransitionMode mode) => UniTask.CompletedTask;
+        public virtual UniTask EnterAsync(TransitionMode mode, IProgress<float> progress) => UniTask.CompletedTask;
+        public virtual UniTask LeaveAsync(TransitionMode mode, IProgress<float> progress) => UniTask.CompletedTask;
 
         protected SceneSharedParameter SceneShared { get; }
         CancellationToken INavigatableScene.SceneLifeCancellationToken { get { return this.SceneShared.CancellationTokenSource.Token; } }
@@ -58,15 +57,5 @@ namespace Tonari.Unity.SceneNavigator
             this._subscriptions.Dispose();
             this._cancellationTokenSource.Cancel();
         }
-    }
-
-    public abstract class SubSceneBase : SceneBase, INavigatableScene
-    {
-        SceneStyle INavigatableScene.SceneStyle => SceneStyle.Sub;
-    }
-
-    public abstract class PopupSceneBase : SceneBase, INavigatableScene
-    {
-        SceneStyle INavigatableScene.SceneStyle => SceneStyle.Popup;
     }
 }

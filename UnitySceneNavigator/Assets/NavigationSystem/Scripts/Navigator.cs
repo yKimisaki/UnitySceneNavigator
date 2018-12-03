@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using UniRx.Async;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -9,6 +10,8 @@ namespace Tonari.Unity.SceneNavigator
     public class Navigator
     {
         private Dictionary<string, INavigatableScene> _scenesByName;
+        private Dictionary<string, INavigatableScene> _currentSubScenesByName;
+
         private Stack<NavigationStackElement> _navigateHistoryStack;
         private INavigatableScene _currentScene;
 
@@ -26,6 +29,7 @@ namespace Tonari.Unity.SceneNavigator
         public Navigator(ILoadingDisplaySelector loadingDisplaySelector, ICanvasCustomizer canvasCustomizer, ICanvasOrderArranger canvasOrderArranger, IAfterTransition afterTransition)
         {
             this._scenesByName = new Dictionary<string, INavigatableScene>();
+            this._currentSubScenesByName = new Dictionary<string, INavigatableScene>();
 
             this._navigateHistoryStack = new Stack<NavigationStackElement>();
 
@@ -41,97 +45,114 @@ namespace Tonari.Unity.SceneNavigator
             this._afterTransition = afterTransition;
         }
 
-        public virtual async UniTask NavigateAsync(ISceneArgs args, IProgress<float> progress = null)
-        {
-            // 結果を待ってるシーンがあるならダメ
-            if (this._taskCompletionSourcesByResultRequirementId.Count > 0)
-            {
-                throw new NavigationFailureException("結果を待っているシーンがあります", args);
-            }
+        //public virtual async UniTask NavigateAsync(ISceneArgs args, IProgress<float> progress = null)
+        //{
+        //    // 結果を待ってるシーンがあるならダメ
+        //    if (this._taskCompletionSourcesByResultRequirementId.Count > 0)
+        //    {
+        //        throw new NavigationFailureException("結果を待っているシーンがあります", args);
+        //    }
 
-            await NavigateCoreAsync(args, NavigationOption.Push, progress);
+        //    for(var i = 0; i < args.SubScenes.Count; ++i)
+        //    {
+        //        if (args.SubScenes[i].SceneName)
+        //        {
+
+        //        }
+        //    }
+
+        //    await NavigateCoreAsync(args, NavigationOption.Push, progress);
+        //}
+
+        public virtual async UniTask<TResult> NavigateNextAsync<TResult>(ISceneArgs args, IProgress<float> progress = null)
+        {
+            using (var internalProgresses = new NavigationInternalProgressGroup(progress, 1))
+            {
+                var resultRequirementId = Guid.NewGuid();
+                var taskCompletionSource = new UniTaskCompletionSource<object>();
+                if (this._taskCompletionSourcesByResultRequirementId.ContainsKey(resultRequirementId))
+                {
+                    throw new NavigationFailureException("シーンをテーブルに追加できませんでした", args);
+                }
+                this._taskCompletionSourcesByResultRequirementId[resultRequirementId] = taskCompletionSource;
+
+                var activateResult = await NavigateCoreAsync(args, NavigationOption.Popup, internalProgresses[0]);
+
+                // ここでダメな場合は既にActivateAsyncでエラーを吐いてるハズ
+                if (activateResult == null)
+                {
+                    return default(TResult);
+                }
+
+                activateResult.NextScene.ResultRequirementId = resultRequirementId;
+
+                var result = await taskCompletionSource.Task;
+
+                if (!(result is TResult))
+                {
+                    throw new NavigationFailureException($"戻り値の型は{typeof(TResult)}を期待しましたが、{result.GetType()}が返されました", args);
+                }
+
+                return (TResult)result;
+            }
         }
 
         public virtual async UniTask NavigateBackAsync(object result = null, IProgress<float> progress = null)
         {
-            var previousObject = this._navigateHistoryStack.Peek();
-            if (previousObject == null)
+            using (var internalProgresses = new NavigationInternalProgressGroup(progress, 1))
             {
-                throw new NavigationFailureException("シーンスタックがありません", null);
-            }
+                var previousObject = this._navigateHistoryStack.Peek();
+                if (previousObject == null)
+                {
+                    throw new NavigationFailureException("シーンスタックがありません", null);
+                }
 
-            var previousScene = default(INavigatableScene);
-            if (!this._scenesByName.TryGetValue(previousObject.SceneName, out previousScene))
-            {
-                throw new NavigationFailureException("無効なシーンが設定されています", null);
-            }
+                var previousScene = default(INavigatableScene);
+                if (!this._scenesByName.TryGetValue(previousObject.SceneName, out previousScene))
+                {
+                    throw new NavigationFailureException("無効なシーンが設定されています", null);
+                }
 
-            // 先に結果要求IDを貰っておく
-            var resultRequirementId = previousScene.ResultRequirementId;
+                // 先に結果要求IDを貰っておく
+                var resultRequirementId = previousScene.ResultRequirementId;
 
-            // 遷移
-            var option = NavigationOption.Pop;
-            if (previousObject.TransitionMode.HasFlag(TransitionMode.KeepCurrent))
-            {
-                option |= NavigationOption.Override;
-            }
+                // 遷移
+                var option = NavigationOption.Pop;
+                if (previousObject.TransitionMode.HasFlag(TransitionMode.KeepCurrent))
+                {
+                    option |= NavigationOption.Override;
+                }
 
-            await NavigateCoreAsync(previousScene.ParentSceneArgs, option, progress);
+                await NavigateCoreAsync(previousScene.ParentSceneArgs, option, internalProgresses[0]);
 
-            if (resultRequirementId.HasValue && this._taskCompletionSourcesByResultRequirementId.ContainsKey(resultRequirementId.Value))
-            {
-                var taskCompletionSource = this._taskCompletionSourcesByResultRequirementId[resultRequirementId.Value];
-                if (taskCompletionSource == null)
+                if (resultRequirementId.HasValue && this._taskCompletionSourcesByResultRequirementId.ContainsKey(resultRequirementId.Value))
+                {
+                    var taskCompletionSource = this._taskCompletionSourcesByResultRequirementId[resultRequirementId.Value];
+                    if (taskCompletionSource == null)
+                    {
+                        throw new NavigationFailureException("戻り値が取得できません", previousScene.SceneArgs);
+                    }
+
+                    if (!taskCompletionSource.TrySetResult(result))
+                    {
+                        throw new NavigationFailureException("結果の代入に失敗しました", previousScene.SceneArgs);
+                    }
+                }
+                else
                 {
                     throw new NavigationFailureException("戻り値が取得できません", previousScene.SceneArgs);
                 }
-
-                if (!taskCompletionSource.TrySetResult(result))
-                {
-                    throw new NavigationFailureException("結果の代入に失敗しました", previousScene.SceneArgs);
-                }
             }
-            else
-            {
-                throw new NavigationFailureException("戻り値が取得できません", previousScene.SceneArgs);
-            }
-        }
-
-        public virtual async UniTask<TResult> NavigatePopupAsync<TResult>(ISceneArgs args, IProgress<float> progress = null)
-        {
-            var resultRequirementId = Guid.NewGuid();
-            var taskCompletionSource = new UniTaskCompletionSource<object>();
-
-            if (this._taskCompletionSourcesByResultRequirementId.ContainsKey(resultRequirementId))
-            {
-                throw new NavigationFailureException("シーンをテーブルに追加できませんでした", args);
-            }
-            this._taskCompletionSourcesByResultRequirementId[resultRequirementId] = taskCompletionSource;
-
-
-            var activateResult = await NavigateCoreAsync(args, NavigationOption.Popup, progress);
-
-            // ここでダメな場合は既にActivateAsyncでエラーを吐いてるハズ
-            if (activateResult == null)
-            {
-                return default(TResult);
-            }
-
-            activateResult.NextScene.ResultRequirementId = resultRequirementId;
-
-
-            var result = await taskCompletionSource.Task;
-
-            if (!(result is TResult))
-            {
-                throw new NavigationFailureException($"戻り値の型は{typeof(TResult)}を期待しましたが、{result.GetType()}が返されました", args);
-            }
-
-            return (TResult)result;
         }
 
         private async UniTask<NavigationResult> NavigateCoreAsync(ISceneArgs args, NavigationOption option = NavigationOption.None, IProgress<float> progress = null)
         {
+            if (this._currentSubScenesByName.ContainsKey(args.SceneName))
+            {
+                throw new NavigationFailureException($"{args.SceneName}は既にサブシーンとしてロードされています。サブシーンを通常シーンに変更することはできません。", args);
+            }
+
+            using (var internalProgresses = new NavigationInternalProgressGroup(progress, 5))
             using (NavigationLock.Acquire(args))
             {
                 var loadingDisplay = default(ILoadingDisplay);
@@ -161,8 +182,10 @@ namespace Tonari.Unity.SceneNavigator
                 }
                 else
                 {
-                    activationResult = await this.LoadAsync(args, option, progress);
+                    activationResult = await this.LoadAsync(args, option, internalProgresses[0]);
                 }
+                internalProgresses[0].Report(1f);
+
                 // ここでダメな場合は既にActivateAsyncでエラーを吐いてるハズ
                 if (activationResult == null || activationResult.NextScene == null)
                 {
@@ -176,7 +199,9 @@ namespace Tonari.Unity.SceneNavigator
                 }
 
                 // 新しいシーンをリセットする
-                await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode);
+                await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode, internalProgresses[1]);
+                internalProgresses[1].Report(1f);
+
                 if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
                 {
                     throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
@@ -189,7 +214,9 @@ namespace Tonari.Unity.SceneNavigator
                 }
 
                 // 新規シーンに入る
-                await activationResult.NextScene.EnterAsync(activationResult.TransitionMode);
+                await activationResult.NextScene.EnterAsync(activationResult.TransitionMode, internalProgresses[2]);
+                internalProgresses[2].Report(1f);
+
                 if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
                 {
                     throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
@@ -215,7 +242,8 @@ namespace Tonari.Unity.SceneNavigator
                 // 古いシーンから出る
                 if (activationResult.PreviousScene != null)
                 {
-                    await activationResult.PreviousScene.LeaveAsync(activationResult.TransitionMode);
+                    await activationResult.PreviousScene.LeaveAsync(activationResult.TransitionMode, internalProgresses[3]);
+                    internalProgresses[3].Report(1f);
 
                     // 古いシーンの遷移処理を呼ぶ
                     await this._afterTransition.OnLeftAsync(activationResult);
@@ -234,7 +262,8 @@ namespace Tonari.Unity.SceneNavigator
 
                         // 古いシーンをスタックから抜いてアンロード
                         var popObject = this._navigateHistoryStack.Pop();
-                        await UnloadAsync(activationResult.PreviousScene.SceneArgs, progress);
+                        await UnloadAsync(activationResult.PreviousScene.SceneArgs, internalProgresses[4]);
+                        internalProgresses[4].Report(1f);
                     }
                 }
 
@@ -249,6 +278,42 @@ namespace Tonari.Unity.SceneNavigator
                 }
 
                 return activationResult;
+            }
+        }
+
+        private async UniTask NavigateSubScenesCoreAsync(ISceneArgs args, IProgress<float> progress = null)
+        {
+            if (!args.SubScenes.Any())
+            {
+                return;
+            }
+
+            using (var internalProgresses = new NavigationInternalProgressGroup(progress, args.SubScenes.Count))
+            {
+                for (var i = 0; i < args.SubScenes.Count; ++i)
+                {
+                    var subSceneArgs = args.SubScenes[i];
+                    if (this._scenesByName.ContainsKey(subSceneArgs.SceneName))
+                    {
+                        throw new NavigationFailureException($"{subSceneArgs.SceneName}は既に通常シーンとしてロードされています。通常シーンをサブシーンに変更することはできません。", args);
+                    }
+
+                    using (NavigationLock.Acquire(args))
+                    {
+                        NavigationResult activationResult;
+                        if (this._currentSubScenesByName.ContainsKey(args.SubScenes[i].SceneName))
+                        {
+                            // 既にInitialize済みのSceneであればActivateするだけでOK
+                            activationResult = this.Activate(subSceneArgs, NavigationOption.None);
+                        }
+                        else
+                        {
+                            activationResult = await this.LoadAsync(subSceneArgs, NavigationOption.None, internalProgresses[i]);
+                        }
+
+                        internalProgresses[i].Report(1f);
+                    }
+                }
             }
         }
 
@@ -440,8 +505,10 @@ namespace Tonari.Unity.SceneNavigator
             // シーンをスタックに積む
             this._navigateHistoryStack.Push(new NavigationStackElement() { SceneName = args.SceneName, TransitionMode = activationResult.TransitionMode });
 
+            var dummyProgress = new Progress<float>();
+
             // シーンをリセットする
-            await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode);
+            await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode, dummyProgress);
             if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
             {
                 throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
@@ -451,7 +518,7 @@ namespace Tonari.Unity.SceneNavigator
             activationResult.NextScene.Initialize();
 
             // シーンに入る
-            await activationResult.NextScene.EnterAsync(activationResult.TransitionMode);
+            await activationResult.NextScene.EnterAsync(activationResult.TransitionMode, dummyProgress);
             if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
             {
                 throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
@@ -514,6 +581,10 @@ namespace Tonari.Unity.SceneNavigator
         private sealed class DefaultSceneArgs : ISceneArgs
         {
             public string SceneName { get; }
+
+            public IReadOnlyList<ISceneArgs> SubScenes => throw new NotImplementedException();
+
+            public SceneStyle SceneStyle => throw new NotImplementedException();
 
             public DefaultSceneArgs(string sceneName)
             {
