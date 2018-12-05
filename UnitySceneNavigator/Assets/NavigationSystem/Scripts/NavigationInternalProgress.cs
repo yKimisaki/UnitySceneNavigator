@@ -17,7 +17,7 @@ namespace Tonari.Unity.SceneNavigator
             for (var i = 0; i < count; ++i)
             {
                 var initialValue = (float)i / count;
-                this._progresses[i] = new NavigationInternalProgress(this._outerProgress, initialValue, margin);
+                this._progresses[i] = new NavigationInternalProgress(outerProgress, initialValue, margin);
             }
         }
 

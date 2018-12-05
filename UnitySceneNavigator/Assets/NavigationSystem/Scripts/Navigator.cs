@@ -176,8 +176,10 @@ namespace Tonari.Unity.SceneNavigator
                     loadingDisplay.Show();
                 }
 
+                var cancellationToken = this._currentScene?.SceneLifeCancellationToken ?? new CancellationTokenSource().Token;
+
                 // まずサブシーンを処理する
-                var subSceneTransitions = await NavigateSubScenesCoreAsync(args, this._currentScene.SceneLifeCancellationToken, internalProgresses[0]);
+                var subSceneTransitions = await NavigateSubScenesCoreAsync(args, cancellationToken, internalProgresses[0]);
                 internalProgresses[0].Report(1f);
 
                 NavigationResult activationResult;
@@ -188,7 +190,7 @@ namespace Tonari.Unity.SceneNavigator
                 }
                 else
                 {
-                    activationResult = await this.LoadAsync(args, this._currentScene.SceneLifeCancellationToken, option, internalProgresses[1]);
+                    activationResult = await this.LoadAsync(args, cancellationToken, option, internalProgresses[1]);
                 }
                 internalProgresses[1].Report(1f);
 
@@ -356,63 +358,67 @@ namespace Tonari.Unity.SceneNavigator
             {
                 for (var i = 0; i < args.SubScenes.Count; ++i)
                 {
-                    var subSceneArgs = args.SubScenes[i];
-                    if (this._scenesByName.ContainsKey(subSceneArgs.SceneName))
+                    using (var internalActivateProgresses2 = new NavigationInternalProgressGroup(internalActivateProgresses[i], 3))
                     {
-                        throw new NavigationFailureException($"{subSceneArgs.SceneName}は既に通常シーンとしてロードされています。通常シーンをサブシーンに変更することはできません。", args);
-                    }
-
-                    NavigationResult activationResult;
-                    if (this._currentSubScenesByName.ContainsKey(args.SubScenes[i].SceneName))
-                    {
-                        // 既にInitialize済みのSceneであればActivateするだけでOK
-                        activationResult = this.Activate(subSceneArgs, NavigationOption.Sub);
-                    }
-                    else
-                    {
-                        activationResult = await this.LoadAsync(subSceneArgs, token, NavigationOption.Sub, internalActivateProgresses[i]);
-                    }
-
-                    internalActivateProgresses[i].Report(1f);
-
-                    // 新しいシーンをリセットする
-                    await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode, internalProgresses[1]);
-                    internalProgresses[1].Report(1f);
-
-                    if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
-                    {
-                        throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
-                    }               
-                    
-                    // 新規シーンなら初期化する
-                    if (activationResult.TransitionMode.HasFlag(TransitionMode.New))
-                    {
-                        activationResult.NextScene.Initialize();
-                    }
-
-                    // 新規シーンに入る
-                    await activationResult.NextScene.EnterAsync(activationResult.TransitionMode, internalProgresses[3]);
-
-                    // 新規シーンに入ったら外部の遷移処理を呼ぶ
-                    result.OnEnteredTasks.Add(async (CancellationToken innerToken, IProgress<float> innerProgress) =>
-                    {
-                        for (var j = 0; j < activationResult.NextScene.RootCanvases.Count; ++j)
+                        var subSceneArgs = args.SubScenes[i];
+                        if (this._scenesByName.ContainsKey(subSceneArgs.SceneName))
                         {
-                            activationResult.NextScene.RootCanvases[j].enabled = false;
+                            throw new NavigationFailureException($"{subSceneArgs.SceneName}は既に通常シーンとしてロードされています。通常シーンをサブシーンに変更することはできません。", args);
                         }
-                        activationResult.NextScene.RootObject.SetActive(true);
 
-                        await this._afterTransition.OnEnteredAsync(activationResult, activationResult.NextScene.SceneLifeCancellationToken, new Progress<float>());
+                        NavigationResult activationResult;
+                        if (this._currentSubScenesByName.ContainsKey(args.SubScenes[i].SceneName))
+                        {
+                            // 既にInitialize済みのSceneであればActivateするだけでOK
+                            activationResult = this.Activate(subSceneArgs, NavigationOption.Sub);
+                        }
+                        else
+                        {
+                            activationResult = await this.LoadAsync(subSceneArgs, token, NavigationOption.Sub, internalActivateProgresses2[0]);
+                        }
+
+                        internalActivateProgresses2[i].Report(1f);
+
+                        // 新しいシーンをリセットする
+                        await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode, internalActivateProgresses2[1]);
+                        internalActivateProgresses2[1].Report(1f);
+
                         if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
                         {
                             throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
                         }
 
-                        for (var j = 0; j < activationResult.NextScene.RootCanvases.Count; ++j)
+                        // 新規シーンなら初期化する
+                        if (activationResult.TransitionMode.HasFlag(TransitionMode.New))
                         {
-                            activationResult.NextScene.RootCanvases[j].enabled = true;
+                            activationResult.NextScene.Initialize();
                         }
-                    });
+
+                        // 新規シーンに入る
+                        await activationResult.NextScene.EnterAsync(activationResult.TransitionMode, internalActivateProgresses2[2]);
+                        internalActivateProgresses2[2].Report(1f);
+
+                        // 新規シーンに入ったら外部の遷移処理を呼ぶ
+                        result.OnEnteredTasks.Add(async (CancellationToken innerToken, IProgress<float> innerProgress) =>
+                        {
+                            for (var j = 0; j < activationResult.NextScene.RootCanvases.Count; ++j)
+                            {
+                                activationResult.NextScene.RootCanvases[j].enabled = false;
+                            }
+                            activationResult.NextScene.RootObject.SetActive(true);
+
+                            await this._afterTransition.OnEnteredAsync(activationResult, activationResult.NextScene.SceneLifeCancellationToken, new Progress<float>());
+                            if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
+                            {
+                                throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
+                            }
+
+                            for (var j = 0; j < activationResult.NextScene.RootCanvases.Count; ++j)
+                            {
+                                activationResult.NextScene.RootCanvases[j].enabled = true;
+                            }
+                        });
+                    }
                 }
             }
 
@@ -579,17 +585,36 @@ namespace Tonari.Unity.SceneNavigator
             return result;
         }
 
+#if UNITY_EDITOR
         public async UniTask ActivateInitialSceneOnLaunchAsync()
         {
             var currentScene = SceneManager.GetActiveScene();
             var args = DefaultSceneArgsFactory.CreateDefaultSceneArgs(currentScene.name);
             var tokenSource = new CancellationTokenSource();
 
-            await this.NavigateSubScenesCoreAsync(args, tokenSource.Token);
+            await UniTask.DelayFrame(1);
+            for(var i = 0; i < SceneManager.sceneCount; ++i)
+            {
+                // 今のシーン
+                if (currentScene == SceneManager.GetSceneAt(i))
+                {
+                    if (args.SceneStyle != SceneStyle.None)
+                    {
+                        new NavigationFailureException("最初のアクティブシーンにサブシーンまたはポップアップシーンを指定することはできません", args);
+                    }
+
+                    continue;
+                }
+
+                await SceneManager.UnloadSceneAsync(i);
+            }
+
+            var subSceneTransition = await this.NavigateSubScenesCoreAsync(args, tokenSource.Token, new Progress<float>());
             if (tokenSource.Token.IsCancellationRequested)
             {
                 throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), tokenSource.Token);
             }
+            await subSceneTransition.OnEnteredAsync(tokenSource.Token);
 
             var activationResult = this.Activate(args, NavigationOption.Push);
             // ここでダメな場合は既にActivateAsyncでエラーを吐いてるハズ
@@ -646,6 +671,7 @@ namespace Tonari.Unity.SceneNavigator
                 activationResult.NextScene.RootCanvases[i].enabled = true;
             }
         }
+#endif
 
         private class NavigationResult : INavigationContext
         {
@@ -701,6 +727,11 @@ namespace Tonari.Unity.SceneNavigator
             public UniTask OnLeftAsync(CancellationToken token)
             {
                 return UniTask.WhenAll(this.OnLeftTasks.Select(x => x(token, new Progress<float>())));
+            }
+
+            internal void OnEnteredAsync(object token)
+            {
+                throw new NotImplementedException();
             }
         }
     }

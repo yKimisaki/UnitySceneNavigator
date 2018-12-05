@@ -10,7 +10,7 @@ namespace Tonari.Unity.SceneNavigator
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void OnLaunch()
         {
-            MainAsync().GetResult();
+            MainAsync().Forget();
         }
 
         public static async UniTask MainAsync()
@@ -38,7 +38,9 @@ namespace Tonari.Unity.SceneNavigator
             // Navigatorの作成
             var navigator = new Navigator(null, canvasCustomizer, null, transitionAnimator);
 
+#if UNITY_EDITOR
             await navigator.ActivateInitialSceneOnLaunchAsync();
+#endif
         }
     }
 }

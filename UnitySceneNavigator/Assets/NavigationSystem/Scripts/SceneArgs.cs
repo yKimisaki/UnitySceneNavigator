@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 
 namespace Tonari.Unity.SceneNavigator
 {
@@ -16,7 +18,7 @@ namespace Tonari.Unity.SceneNavigator
     {
         public virtual IReadOnlyList<ISceneArgs> SubScenes => Array.Empty<ISceneArgs>();
 
-        string ISceneArgs.SceneName => nameof(T);
+        string ISceneArgs.SceneName => typeof(T).Name;
 
         SceneStyle ISceneArgs.SceneStyle => SceneStyle.None;
     }
@@ -26,7 +28,7 @@ namespace Tonari.Unity.SceneNavigator
         // サブシーンにサブシーンは指定できない
         IReadOnlyList<ISceneArgs> ISceneArgs.SubScenes => Array.Empty<ISceneArgs>();
 
-        string ISceneArgs.SceneName => nameof(T);
+        string ISceneArgs.SceneName => typeof(T).Name;
 
         SceneStyle ISceneArgs.SceneStyle => SceneStyle.Sub;
     }
@@ -36,22 +38,27 @@ namespace Tonari.Unity.SceneNavigator
         // ポップアップにサブシーンは指定できない
         IReadOnlyList<ISceneArgs> ISceneArgs.SubScenes => Array.Empty<ISceneArgs>();
 
-        string ISceneArgs.SceneName => nameof(T);
+        string ISceneArgs.SceneName => typeof(T).Name;
 
         SceneStyle ISceneArgs.SceneStyle => SceneStyle.Popup;
     }
 
+#if UNITY_EDITOR
     public sealed class DefaultSceneArgsFactory 
     {
         public static ISceneArgs CreateDefaultSceneArgs(string sceneName)
         {
-            var sceneArgsType = Type.GetType(sceneName + "Args");
+            var sceneArgsType = Assembly.GetExecutingAssembly()
+                .GetTypes()
+                .FirstOrDefault(x => x.Name == sceneName + "Args");
+            // Type.GetType("Tonari.Unity.NavigationSystemSample." + sceneName + "Args");
             if (sceneArgsType == null)
             {
-                throw new InvalidOperationException($"起動用のシーン引数{sceneName}Argsが見つかりませんでした");
+                throw new InvalidOperationException($"起動用のシーン引数: {sceneName}Argsが見つかりませんでした");
             }
 
             return (ISceneArgs)Activator.CreateInstance(sceneArgsType);
         }
     }
+#endif
 }
