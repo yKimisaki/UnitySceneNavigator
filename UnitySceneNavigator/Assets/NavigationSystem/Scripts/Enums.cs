@@ -18,6 +18,8 @@ namespace Tonari.Unity.SceneNavigator
         Push = 1 << 1,
         Pop = 1 << 2,
 
+        Sub = 1 << 10,
+
         Override = 1 << 31,
 
         Popup = Push | Override,

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading;
 using Tonari.Unity.SceneNavigator;
 using UniRx.Async;
 using UnityEngine;
@@ -14,7 +15,7 @@ namespace Tonari.Unity.NavigationSystemSample
             this._animatorController = Resources.Load<RuntimeAnimatorController>("Animator/NavigationAnimator");
         }
 
-        public UniTask OnEnteredAsync(INavigationContext context)
+        public UniTask OnEnteredAsync(INavigationContext context, CancellationToken token, IProgress<float> progress)
         {
             var nextSceneAnimator = context.NextScene.RootObject.GetComponent<Animator>();
             if (nextSceneAnimator == null)
@@ -31,7 +32,7 @@ namespace Tonari.Unity.NavigationSystemSample
             return UniTask.CompletedTask;
         }
 
-        public UniTask OnLeftAsync(INavigationContext context)
+        public UniTask OnLeftAsync(INavigationContext context, CancellationToken token, IProgress<float> progress)
         {
             var prevSceneAnimator = context.PreviousScene.RootObject.GetComponent<Animator>();
             if (prevSceneAnimator == null)

@@ -1,5 +1,4 @@
-﻿
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace Tonari.Unity.SceneNavigator
@@ -40,5 +39,19 @@ namespace Tonari.Unity.SceneNavigator
         string ISceneArgs.SceneName => nameof(T);
 
         SceneStyle ISceneArgs.SceneStyle => SceneStyle.Popup;
+    }
+
+    public sealed class DefaultSceneArgsFactory 
+    {
+        public static ISceneArgs CreateDefaultSceneArgs(string sceneName)
+        {
+            var sceneArgsType = Type.GetType(sceneName + "Args");
+            if (sceneArgsType == null)
+            {
+                throw new InvalidOperationException($"起動用のシーン引数{sceneName}Argsが見つかりませんでした");
+            }
+
+            return (ISceneArgs)Activator.CreateInstance(sceneArgsType);
+        }
     }
 }

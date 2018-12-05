@@ -7,6 +7,12 @@ namespace Tonari.Unity.SceneNavigator
 {
     public static class EntryPoint
     {
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void OnLaunch()
+        {
+            MainAsync().GetResult();
+        }
+
         public static async UniTask MainAsync()
         {
             // UI用カメラの作成

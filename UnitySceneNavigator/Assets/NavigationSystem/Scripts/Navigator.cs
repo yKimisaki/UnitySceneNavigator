@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using UniRx;
 using UniRx.Async;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -152,7 +154,7 @@ namespace Tonari.Unity.SceneNavigator
                 throw new NavigationFailureException($"{args.SceneName}は既にサブシーンとしてロードされています。サブシーンを通常シーンに変更することはできません。", args);
             }
 
-            using (var internalProgresses = new NavigationInternalProgressGroup(progress, 5))
+            using (var internalProgresses = new NavigationInternalProgressGroup(progress, 6))
             using (NavigationLock.Acquire(args))
             {
                 var loadingDisplay = default(ILoadingDisplay);
@@ -174,6 +176,10 @@ namespace Tonari.Unity.SceneNavigator
                     loadingDisplay.Show();
                 }
 
+                // まずサブシーンを処理する
+                var subSceneTransitions = await NavigateSubScenesCoreAsync(args, this._currentScene.SceneLifeCancellationToken, internalProgresses[0]);
+                internalProgresses[0].Report(1f);
+
                 NavigationResult activationResult;
                 if (this._scenesByName.ContainsKey(args.SceneName))
                 {
@@ -182,9 +188,9 @@ namespace Tonari.Unity.SceneNavigator
                 }
                 else
                 {
-                    activationResult = await this.LoadAsync(args, option, internalProgresses[0]);
+                    activationResult = await this.LoadAsync(args, this._currentScene.SceneLifeCancellationToken, option, internalProgresses[1]);
                 }
-                internalProgresses[0].Report(1f);
+                internalProgresses[1].Report(1f);
 
                 // ここでダメな場合は既にActivateAsyncでエラーを吐いてるハズ
                 if (activationResult == null || activationResult.NextScene == null)
@@ -199,8 +205,8 @@ namespace Tonari.Unity.SceneNavigator
                 }
 
                 // 新しいシーンをリセットする
-                await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode, internalProgresses[1]);
-                internalProgresses[1].Report(1f);
+                await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode, internalProgresses[2]);
+                internalProgresses[2].Report(1f);
 
                 if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
                 {
@@ -214,81 +220,139 @@ namespace Tonari.Unity.SceneNavigator
                 }
 
                 // 新規シーンに入る
-                await activationResult.NextScene.EnterAsync(activationResult.TransitionMode, internalProgresses[2]);
-                internalProgresses[2].Report(1f);
-
+                await activationResult.NextScene.EnterAsync(activationResult.TransitionMode, internalProgresses[3]);
+                internalProgresses[3].Report(1f);
                 if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
                 {
                     throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
-                }
-
-                // 新規シーンに入ったら外部の遷移処理を呼ぶ
-                for (var i = 0; i < activationResult.NextScene.RootCanvases.Count; ++i)
-                {
-                    activationResult.NextScene.RootCanvases[i].enabled = false;
-                }
-                activationResult.NextScene.RootObject.SetActive(true);
-                await this._afterTransition.OnEnteredAsync(activationResult);
-                if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
-                {
-                    throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
-                }
-
-                for (var i = 0; i < activationResult.NextScene.RootCanvases.Count; ++i)
-                {
-                    activationResult.NextScene.RootCanvases[i].enabled = true;
                 }
 
                 // 古いシーンから出る
                 if (activationResult.PreviousScene != null)
                 {
-                    await activationResult.PreviousScene.LeaveAsync(activationResult.TransitionMode, internalProgresses[3]);
-                    internalProgresses[3].Report(1f);
+                    await activationResult.PreviousScene.LeaveAsync(activationResult.TransitionMode, internalProgresses[4]);
+                    internalProgresses[4].Report(1f);
+                }
 
-                    // 古いシーンの遷移処理を呼ぶ
-                    await this._afterTransition.OnLeftAsync(activationResult);
-
-                    // 上に乗せるフラグが無ければ非アクティブ化
-                    if (!option.HasFlag(NavigationOption.Override))
+                // 新規シーンに入ったら外部の遷移処理を呼ぶ
+                async UniTask enterNext()
+                {
+                    for (var i = 0; i < activationResult.NextScene.RootCanvases.Count; ++i)
                     {
-                        activationResult.PreviousScene.RootObject.SetActive(false);
+                        activationResult.NextScene.RootCanvases[i].enabled = false;
+                    }
+                    activationResult.NextScene.RootObject.SetActive(true);
+
+                    await this._afterTransition.OnEnteredAsync(activationResult, activationResult.NextScene.SceneLifeCancellationToken, new Progress<float>());
+                    if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
+                    {
+                        throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
                     }
 
-                    // Popするならアンロードも行う
-                    if (option.HasFlag(NavigationOption.Pop))
+                    for (var i = 0; i < activationResult.NextScene.RootCanvases.Count; ++i)
                     {
-                        // シーンのファイナライズ処理
-                        activationResult.PreviousScene.Collapse();
-
-                        // 古いシーンをスタックから抜いてアンロード
-                        var popObject = this._navigateHistoryStack.Pop();
-                        await UnloadAsync(activationResult.PreviousScene.SceneArgs, internalProgresses[4]);
-                        internalProgresses[4].Report(1f);
+                        activationResult.NextScene.RootCanvases[i].enabled = true;
                     }
+                }
+
+                // 古いシーンの遷移処理を呼ぶ
+                async UniTask leavePrevious()
+                {
+                    if (activationResult.PreviousScene != null)
+                    {
+                        await this._afterTransition.OnLeftAsync(activationResult, activationResult.NextScene.SceneLifeCancellationToken, new Progress<float>());
+                        if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
+                        {
+                            throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
+                        }
+
+                        // 上に乗せるフラグが無ければ非アクティブ化
+                        if (!option.HasFlag(NavigationOption.Override))
+                        {
+                            activationResult.PreviousScene.RootObject.SetActive(false);
+                        }
+
+                        // Popするならアンロードも行う
+                        if (option.HasFlag(NavigationOption.Pop))
+                        {
+                            // シーンのファイナライズ処理
+                            activationResult.PreviousScene.Collapse();
+
+                            // 古いシーンをスタックから抜いてアンロード
+                            var popObject = this._navigateHistoryStack.Pop();
+                            await UnloadAsync(activationResult.PreviousScene.SceneArgs, activationResult.NextScene.SceneLifeCancellationToken, internalProgresses[5]);
+                            if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
+                            {
+                                throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
+                            }
+                        }
+                    }
+
+                    internalProgresses[5].Report(1f);
+                }
+
+                // 遷移処理は同時に進行
+                await UniTask.WhenAll(
+                    enterNext(),
+                    leavePrevious(), 
+                    subSceneTransitions.OnEnteredAsync(activationResult.NextScene.SceneLifeCancellationToken), 
+                    subSceneTransitions.OnLeftAsync(activationResult.NextScene.SceneLifeCancellationToken));
+                if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
+                {
+                    throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
                 }
 
                 if (loadingDisplay != null)
                 {
                     loadingDisplay.Hide();
                 }
-
-                if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
-                {
-                    throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
-                }
-
+                
                 return activationResult;
             }
         }
 
-        private async UniTask NavigateSubScenesCoreAsync(ISceneArgs args, IProgress<float> progress = null)
+        private async UniTask<SubSceneTransitions> NavigateSubScenesCoreAsync(ISceneArgs args, CancellationToken token, IProgress<float> progress = null)
         {
+            var result = new SubSceneTransitions();
+
             if (!args.SubScenes.Any())
             {
-                return;
+                return result;
             }
 
-            using (var internalProgresses = new NavigationInternalProgressGroup(progress, args.SubScenes.Count))
+            var internalProgresses = new NavigationInternalProgressGroup(progress, 2);
+
+            var removes = this._currentSubScenesByName
+                .Where(x => args.SubScenes.All(y => y.SceneName != x.Key))
+                .Select(x => x.Value)
+                .ToArray();
+            using (var internalDisactivateProgresses = new NavigationInternalProgressGroup(internalProgresses[0], removes.Length))
+            {
+                for (var i = 0; i < removes.Length; ++i)
+                {
+                    var disactivationResult = new NavigationResult()
+                    {
+                        PreviousScene = removes[i],
+                        TransitionMode = TransitionMode.Back,
+                    };
+
+                    await removes[i].LeaveAsync(disactivationResult.TransitionMode, internalDisactivateProgresses[i]);
+                    internalDisactivateProgresses[i].Report(1f);
+
+                    // 古いシーンの遷移処理を呼ぶ
+                    result.OnLeftTasks.Add(async (CancellationToken innerToken, IProgress<float> innerProgress) =>
+                    {
+                        await this._afterTransition.OnLeftAsync(disactivationResult, innerToken, innerProgress);
+
+                        // シーンのファイナライズ処理
+                        disactivationResult.PreviousScene.Collapse();
+
+                        await UnloadAsync(disactivationResult.PreviousScene.SceneArgs, token);
+                    });
+                }
+            }
+
+            using (var internalActivateProgresses = new NavigationInternalProgressGroup(internalProgresses[1], args.SubScenes.Count))
             {
                 for (var i = 0; i < args.SubScenes.Count; ++i)
                 {
@@ -298,26 +362,64 @@ namespace Tonari.Unity.SceneNavigator
                         throw new NavigationFailureException($"{subSceneArgs.SceneName}は既に通常シーンとしてロードされています。通常シーンをサブシーンに変更することはできません。", args);
                     }
 
-                    using (NavigationLock.Acquire(args))
+                    NavigationResult activationResult;
+                    if (this._currentSubScenesByName.ContainsKey(args.SubScenes[i].SceneName))
                     {
-                        NavigationResult activationResult;
-                        if (this._currentSubScenesByName.ContainsKey(args.SubScenes[i].SceneName))
+                        // 既にInitialize済みのSceneであればActivateするだけでOK
+                        activationResult = this.Activate(subSceneArgs, NavigationOption.Sub);
+                    }
+                    else
+                    {
+                        activationResult = await this.LoadAsync(subSceneArgs, token, NavigationOption.Sub, internalActivateProgresses[i]);
+                    }
+
+                    internalActivateProgresses[i].Report(1f);
+
+                    // 新しいシーンをリセットする
+                    await activationResult.NextScene.ResetAsync(args, activationResult.TransitionMode, internalProgresses[1]);
+                    internalProgresses[1].Report(1f);
+
+                    if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
+                    {
+                        throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
+                    }               
+                    
+                    // 新規シーンなら初期化する
+                    if (activationResult.TransitionMode.HasFlag(TransitionMode.New))
+                    {
+                        activationResult.NextScene.Initialize();
+                    }
+
+                    // 新規シーンに入る
+                    await activationResult.NextScene.EnterAsync(activationResult.TransitionMode, internalProgresses[3]);
+
+                    // 新規シーンに入ったら外部の遷移処理を呼ぶ
+                    result.OnEnteredTasks.Add(async (CancellationToken innerToken, IProgress<float> innerProgress) =>
+                    {
+                        for (var j = 0; j < activationResult.NextScene.RootCanvases.Count; ++j)
                         {
-                            // 既にInitialize済みのSceneであればActivateするだけでOK
-                            activationResult = this.Activate(subSceneArgs, NavigationOption.None);
+                            activationResult.NextScene.RootCanvases[j].enabled = false;
                         }
-                        else
+                        activationResult.NextScene.RootObject.SetActive(true);
+
+                        await this._afterTransition.OnEnteredAsync(activationResult, activationResult.NextScene.SceneLifeCancellationToken, new Progress<float>());
+                        if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
                         {
-                            activationResult = await this.LoadAsync(subSceneArgs, NavigationOption.None, internalProgresses[i]);
+                            throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
                         }
 
-                        internalProgresses[i].Report(1f);
-                    }
+                        for (var j = 0; j < activationResult.NextScene.RootCanvases.Count; ++j)
+                        {
+                            activationResult.NextScene.RootCanvases[j].enabled = true;
+                        }
+                    });
                 }
             }
+
+            return result;
         }
 
-        private async UniTask<NavigationResult> LoadAsync(ISceneArgs args, NavigationOption option = NavigationOption.None, IProgress<float> progress = null)
+        private async UniTask<NavigationResult> LoadAsync(ISceneArgs args, CancellationToken token, NavigationOption option = NavigationOption.None, IProgress<float> progress = null)
         {
             var asyncOperation = SceneManager.LoadSceneAsync(args.SceneName, LoadSceneMode.Additive);
 
@@ -326,6 +428,11 @@ namespace Tonari.Unity.SceneNavigator
             {
                 progress?.Report(asyncOperation.progress);
                 await UniTask.Delay(TimeSpan.FromSeconds(Time.fixedDeltaTime));
+
+                if (token.IsCancellationRequested)
+                {
+                    throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), token);
+                }
             }
             progress?.Report(1f);
 
@@ -349,7 +456,7 @@ namespace Tonari.Unity.SceneNavigator
             return result;
         }
 
-        private async UniTask UnloadAsync(ISceneArgs args, IProgress<float> progress = null)
+        private async UniTask UnloadAsync(ISceneArgs args, CancellationToken token, IProgress<float> progress = null)
         {
             var asyncOperation = SceneManager.UnloadSceneAsync(args.SceneName);
 
@@ -358,6 +465,11 @@ namespace Tonari.Unity.SceneNavigator
             {
                 progress?.Report(asyncOperation.progress);
                 await UniTask.Delay(TimeSpan.FromSeconds(Time.fixedDeltaTime));
+
+                if (token.IsCancellationRequested)
+                {
+                    throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), token);
+                }
             }
             progress?.Report(1f);
 
@@ -467,25 +579,17 @@ namespace Tonari.Unity.SceneNavigator
             return result;
         }
 
-        private static bool _isLaunched;
-
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-        private static void OnLaunch()
-        {
-            EntryPoint.MainAsync().GetResult();
-
-            _isLaunched = true;
-        }
-
         public async UniTask ActivateInitialSceneOnLaunchAsync()
         {
-            if (_isLaunched)
-            {
-                return;
-            }
-
             var currentScene = SceneManager.GetActiveScene();
-            var args = new DefaultSceneArgs(currentScene.name);
+            var args = DefaultSceneArgsFactory.CreateDefaultSceneArgs(currentScene.name);
+            var tokenSource = new CancellationTokenSource();
+
+            await this.NavigateSubScenesCoreAsync(args, tokenSource.Token);
+            if (tokenSource.Token.IsCancellationRequested)
+            {
+                throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), tokenSource.Token);
+            }
 
             var activationResult = this.Activate(args, NavigationOption.Push);
             // ここでダメな場合は既にActivateAsyncでエラーを吐いてるハズ
@@ -531,7 +635,7 @@ namespace Tonari.Unity.SceneNavigator
             }
             activationResult.NextScene.RootObject.SetActive(true);
 
-            await this._afterTransition.OnEnteredAsync(activationResult);
+            await this._afterTransition.OnEnteredAsync(activationResult, activationResult.NextScene.SceneLifeCancellationToken, new Progress<float>());
             if (activationResult.NextScene.SceneLifeCancellationToken.IsCancellationRequested)
             {
                 throw new OperationCanceledException("遷移処理がキャンセルされました", new NavigationFailureException("遷移処理がキャンセルされました", args), activationResult.NextScene.SceneLifeCancellationToken);
@@ -578,17 +682,25 @@ namespace Tonari.Unity.SceneNavigator
             }
         }
 
-        private sealed class DefaultSceneArgs : ISceneArgs
+        private class SubSceneTransitions
         {
-            public string SceneName { get; }
+            public List<Func<CancellationToken, IProgress<float>, UniTask>> OnEnteredTasks { get; }
+            public List<Func<CancellationToken, IProgress<float>, UniTask>> OnLeftTasks { get; }
 
-            public IReadOnlyList<ISceneArgs> SubScenes => throw new NotImplementedException();
-
-            public SceneStyle SceneStyle => throw new NotImplementedException();
-
-            public DefaultSceneArgs(string sceneName)
+            public SubSceneTransitions()
             {
-                this.SceneName = sceneName;
+                this.OnEnteredTasks = new List<Func<CancellationToken, IProgress<float>, UniTask>>();
+                this.OnLeftTasks = new List<Func<CancellationToken, IProgress<float>, UniTask>>();
+            }
+
+            public UniTask OnEnteredAsync(CancellationToken token)
+            {
+                return UniTask.WhenAll(this.OnEnteredTasks.Select(x => x(token, new Progress<float>())));
+            }
+
+            public UniTask OnLeftAsync(CancellationToken token)
+            {
+                return UniTask.WhenAll(this.OnLeftTasks.Select(x => x(token, new Progress<float>())));
             }
         }
     }
